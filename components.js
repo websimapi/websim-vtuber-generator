@@ -158,7 +158,7 @@ const SelectedVTuberDisplay = memo(({ vtuber, trackingData }) => {
         const tiltAngle = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x) * (180 / Math.PI);
         const significantTilt = Math.abs(tiltAngle) > 5 ? tiltAngle * 0.3 : 0;
 
-        const headX = (nose.x - 0.5) * 150;
+        const headX = (nose.x - 0.5) * -150; // Inverted for more natural movement
         const headY = (nose.y - 0.5) * 100;
 
         let mouthScaleY = 1;
