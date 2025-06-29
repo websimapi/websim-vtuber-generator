@@ -157,32 +157,30 @@
                 
                 if (!nose || !leftEye || !rightEye) return {};
                 
-                // Calculate head tilt
-                const eyeCenterX = (leftEye.x + rightEye.x) / 2;
-                const eyeCenterY = (leftEye.y + rightEye.y) / 2;
+                // Calculate head tilt - only rotate if significant tilt
                 const tiltAngle = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x) * (180 / Math.PI);
+                const significantTilt = Math.abs(tiltAngle) > 5 ? tiltAngle * 0.3 : 0; // Only rotate if > 5 degrees
                 
-                // Calculate head position offset
-                const headX = (nose.x - 0.5) * 100; // Convert to percentage offset
-                const headY = (nose.y - 0.5) * 100;
+                // Calculate head position offset - make sliding more sensitive
+                const headX = (nose.x - 0.5) * 150; // Increased sensitivity for horizontal sliding
+                const headY = (nose.y - 0.5) * 100; // Vertical sliding
                 
-                // Calculate mouth openness for scaling effect
+                // Calculate mouth openness for mouth region scaling
                 let mouthScale = 1;
+                let mouthScaleY = 1;
                 if (face[13] && face[14]) { // Upper and lower lip landmarks
                     const upperLip = face[13];
                     const lowerLip = face[14];
                     const mouthOpenness = Math.abs(upperLip.y - lowerLip.y);
-                    // Scale based on mouth openness (0.02 is approximate closed mouth distance)
-                    mouthScale = 1 + (mouthOpenness - 0.02) * 15; // Amplify the effect
-                    mouthScale = Math.max(0.8, Math.min(1.4, mouthScale)); // Clamp between 0.8 and 1.4
+                    // Scale mouth region vertically based on openness
+                    mouthScaleY = 0.3 + (mouthOpenness * 20); // Scale from 0.3 to expand based on mouth
+                    mouthScaleY = Math.max(0.3, Math.min(2.0, mouthScaleY)); // Clamp between 0.3 and 2.0
                 }
                 
                 return {
-                    transform: `translate(${headX * 0.3}px, ${headY * 0.3}px) rotate(${tiltAngle * 0.3}deg) scale(${mouthScale})`,
+                    transform: `translate(${headX}px, ${headY}px) rotate(${significantTilt}deg)`,
                     filter: trackingData.poseLandmarks ? 'none' : 'grayscale(50%)',
-                    transformOrigin: selectedVTuber.anchorPoints?.find(p => p.type === 'mouth') ? 
-                        `${selectedVTuber.anchorPoints.find(p => p.type === 'mouth').x}% ${selectedVTuber.anchorPoints.find(p => p.type === 'mouth').y}%` : 
-                        'center center'
+                    mouthScale: mouthScaleY
                 };
             };
 
@@ -467,6 +465,22 @@
                                     alt={selectedVTuber.name}
                                     className="display-image"
                                 />
+                                {/* Mouth overlay for independent scaling */}
+                                {selectedVTuber.anchorPoints?.find(p => p.type === 'mouth') && (
+                                    <div 
+                                        className="mouth-overlay"
+                                        style={{
+                                            transform: `scaleY(${getVTuberTransform().mouthScale || 1})`,
+                                            clipPath: `circle(15% at ${selectedVTuber.anchorPoints.find(p => p.type === 'mouth').x}% ${selectedVTuber.anchorPoints.find(p => p.type === 'mouth').y}%)`
+                                        }}
+                                    >
+                                        <img
+                                            src={selectedVTuber.imageUrl}
+                                            alt={selectedVTuber.name}
+                                            className="mouth-image"
+                                        />
+                                    </div>
+                                )}
                                 <div className="vtuber-name-badge">
                                     {selectedVTuber.name}
                                 </div>
