@@ -7,13 +7,16 @@
     <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div id="root"></div>
     
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
         const room = new WebsimSocket();
 
         function VTuberGenerator() {
@@ -23,6 +26,13 @@
             const [currentUser, setCurrentUser] = useState(null);
             const [editingVTuber, setEditingVTuber] = useState(null);
             const [anchorPoints, setAnchorPoints] = useState([]);
+            const [isCameraActive, setIsCameraActive] = useState(false);
+            const [trackingData, setTrackingData] = useState(null);
+            
+            const videoRef = useRef(null);
+            const canvasRef = useRef(null);
+            const holisticRef = useRef(null);
+            const cameraRef = useRef(null);
             
             // Subscribe to VTuber records
             const vtubers = React.useSyncExternalStore(
@@ -37,6 +47,130 @@
                 }
                 getCurrentUser();
             }, []);
+
+            useEffect(() => {
+                if (isCameraActive) {
+                    initializeCamera();
+                } else {
+                    stopCamera();
+                }
+                
+                return () => stopCamera();
+            }, [isCameraActive]);
+
+            const initializeCamera = async () => {
+                try {
+                    const holistic = new Holistic({
+                        locateFile: (file) => {
+                            return `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`;
+                        }
+                    });
+                    
+                    holistic.setOptions({
+                        modelComplexity: 1,
+                        smoothLandmarks: true,
+                        enableSegmentation: false,
+                        smoothSegmentation: true,
+                        refineFaceLandmarks: true,
+                        minDetectionConfidence: 0.5,
+                        minTrackingConfidence: 0.5
+                    });
+                    
+                    holistic.onResults(onHolisticResults);
+                    holisticRef.current = holistic;
+                    
+                    const camera = new Camera(videoRef.current, {
+                        onFrame: async () => {
+                            if (holisticRef.current) {
+                                await holisticRef.current.send({image: videoRef.current});
+                            }
+                        },
+                        width: 640,
+                        height: 480
+                    });
+                    
+                    cameraRef.current = camera;
+                    await camera.start();
+                } catch (error) {
+                    console.error('Error initializing camera:', error);
+                    setIsCameraActive(false);
+                }
+            };
+
+            const stopCamera = () => {
+                if (cameraRef.current) {
+                    cameraRef.current.stop();
+                    cameraRef.current = null;
+                }
+                if (holisticRef.current) {
+                    holisticRef.current.close();
+                    holisticRef.current = null;
+                }
+            };
+
+            const onHolisticResults = (results) => {
+                setTrackingData(results);
+                
+                if (canvasRef.current && results) {
+                    const canvas = canvasRef.current;
+                    const ctx = canvas.getContext('2d');
+                    
+                    canvas.width = videoRef.current.videoWidth;
+                    canvas.height = videoRef.current.videoHeight;
+                    
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+                    
+                    // Draw face landmarks
+                    if (results.faceLandmarks) {
+                        drawLandmarks(ctx, results.faceLandmarks, '#ff6b6b', 2);
+                    }
+                    
+                    // Draw pose landmarks
+                    if (results.poseLandmarks) {
+                        drawLandmarks(ctx, results.poseLandmarks, '#45b7d1', 4);
+                    }
+                }
+            };
+
+            const drawLandmarks = (ctx, landmarks, color, size) => {
+                ctx.fillStyle = color;
+                landmarks.forEach(landmark => {
+                    ctx.beginPath();
+                    ctx.arc(landmark.x * ctx.canvas.width, landmark.y * ctx.canvas.height, size, 0, 2 * Math.PI);
+                    ctx.fill();
+                });
+            };
+
+            const getVTuberTransform = () => {
+                if (!trackingData || !trackingData.faceLandmarks || !selectedVTuber?.anchorPoints) {
+                    return {};
+                }
+                
+                const face = trackingData.faceLandmarks;
+                if (face.length === 0) return {};
+                
+                // Calculate head rotation based on nose and face landmarks
+                const nose = face[1]; // Nose tip
+                const leftEye = face[33];
+                const rightEye = face[263];
+                
+                if (!nose || !leftEye || !rightEye) return {};
+                
+                // Calculate head tilt
+                const eyeCenterX = (leftEye.x + rightEye.x) / 2;
+                const eyeCenterY = (leftEye.y + rightEye.y) / 2;
+                const tiltAngle = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x) * (180 / Math.PI);
+                
+                // Calculate head position offset
+                const headX = (nose.x - 0.5) * 100; // Convert to percentage offset
+                const headY = (nose.y - 0.5) * 100;
+                
+                return {
+                    transform: `translate(${headX * 0.3}px, ${headY * 0.3}px) rotate(${tiltAngle * 0.3}deg)`,
+                    filter: trackingData.poseLandmarks ? 'none' : 'grayscale(50%)'
+                };
+            };
 
             const generateVTuber = async () => {
                 if (!prompt.trim() || isGenerating) return;
@@ -263,8 +397,49 @@
                     </div>
 
                     {selectedVTuber && (
+                        <div className="camera-section">
+                            <h2>🎥 Live Animation</h2>
+                            <div className="camera-controls">
+                                <button
+                                    onClick={() => setIsCameraActive(!isCameraActive)}
+                                    className={`camera-btn ${isCameraActive ? 'active' : ''}`}
+                                >
+                                    {isCameraActive ? '🔴 Stop Camera' : '📹 Start Camera'}
+                                </button>
+                                <div className="camera-status">
+                                    {isCameraActive ? (
+                                        trackingData?.faceLandmarks ? 
+                                            '✅ Face tracking active' : 
+                                            '⏳ Initializing tracking...'
+                                    ) : (
+                                        '⚫ Camera off'
+                                    )}
+                                </div>
+                            </div>
+                            
+                            {isCameraActive && (
+                                <div className="camera-container">
+                                    <div className="video-container">
+                                        <video
+                                            ref={videoRef}
+                                            className="video-feed"
+                                            autoPlay
+                                            muted
+                                            playsInline
+                                        />
+                                        <canvas
+                                            ref={canvasRef}
+                                            className="tracking-overlay"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {selectedVTuber && (
                         <div className="selected-vtuber">
-                            <div className="vtuber-display">
+                            <div className="vtuber-display" style={getVTuberTransform()}>
                                 <img
                                     src={selectedVTuber.imageUrl}
                                     alt={selectedVTuber.name}
@@ -273,6 +448,20 @@
                                 <div className="vtuber-name-badge">
                                     {selectedVTuber.name}
                                 </div>
+                                {selectedVTuber.anchorPoints?.map((point) => (
+                                    <div
+                                        key={point.id}
+                                        className="live-anchor-point"
+                                        style={{
+                                            left: `${point.x}%`,
+                                            top: `${point.y}%`,
+                                            backgroundColor: getAnchorTypeColor(point.type),
+                                            transform: trackingData?.faceLandmarks ? 
+                                                `translate(-50%, -50%) scale(${1 + Math.sin(Date.now() * 0.01) * 0.1})` :
+                                                'translate(-50%, -50%)'
+                                        }}
+                                    />
+                                ))}
                             </div>
                         </div>
                     )}
