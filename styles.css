@@ -359,6 +359,7 @@ body {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: transform 0.1s ease-out;
 }
 
 .vtuber-name-badge {
@@ -542,6 +543,7 @@ body {
 
 .anchor-point:hover {
     transform: translate(-50%, -50%) scale(1.2);
+    box-shadow: 0 4px 12px rgba(255, 0, 0, 0.5);
 }
 
 .anchor-label {

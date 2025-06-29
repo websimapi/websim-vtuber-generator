@@ -166,9 +166,23 @@
                 const headX = (nose.x - 0.5) * 100; // Convert to percentage offset
                 const headY = (nose.y - 0.5) * 100;
                 
+                // Calculate mouth openness for scaling effect
+                let mouthScale = 1;
+                if (face[13] && face[14]) { // Upper and lower lip landmarks
+                    const upperLip = face[13];
+                    const lowerLip = face[14];
+                    const mouthOpenness = Math.abs(upperLip.y - lowerLip.y);
+                    // Scale based on mouth openness (0.02 is approximate closed mouth distance)
+                    mouthScale = 1 + (mouthOpenness - 0.02) * 15; // Amplify the effect
+                    mouthScale = Math.max(0.8, Math.min(1.4, mouthScale)); // Clamp between 0.8 and 1.4
+                }
+                
                 return {
-                    transform: `translate(${headX * 0.3}px, ${headY * 0.3}px) rotate(${tiltAngle * 0.3}deg)`,
-                    filter: trackingData.poseLandmarks ? 'none' : 'grayscale(50%)'
+                    transform: `translate(${headX * 0.3}px, ${headY * 0.3}px) rotate(${tiltAngle * 0.3}deg) scale(${mouthScale})`,
+                    filter: trackingData.poseLandmarks ? 'none' : 'grayscale(50%)',
+                    transformOrigin: selectedVTuber.anchorPoints?.find(p => p.type === 'mouth') ? 
+                        `${selectedVTuber.anchorPoints.find(p => p.type === 'mouth').x}% ${selectedVTuber.anchorPoints.find(p => p.type === 'mouth').y}%` : 
+                        'center center'
                 };
             };
 
@@ -483,7 +497,7 @@
                                 </div>
                                 
                                 <div className="edit-instructions">
-                                    <p>Click on the image to add anchor points for animation tracking:</p>
+                                    <p>Click on the image to add anchor points for animation tracking. Click existing points to remove them:</p>
                                     <div className="anchor-types">
                                         <label>
                                             <input type="radio" name="anchorType" value="left_eye" defaultChecked />
