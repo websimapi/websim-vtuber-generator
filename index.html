@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VTuber Generator</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const room = new WebsimSocket();
+
+        function VTuberGenerator() {
+            const [prompt, setPrompt] = useState('');
+            const [isGenerating, setIsGenerating] = useState(false);
+            const [selectedVTuber, setSelectedVTuber] = useState(null);
+            const [currentUser, setCurrentUser] = useState(null);
+            
+            // Subscribe to VTuber records
+            const vtubers = React.useSyncExternalStore(
+                room.collection('vtuber').subscribe,
+                room.collection('vtuber').getList
+            );
+
+            useEffect(() => {
+                async function getCurrentUser() {
+                    const user = await window.websim.getCurrentUser();
+                    setCurrentUser(user);
+                }
+                getCurrentUser();
+            }, []);
+
+            const generateVTuber = async () => {
+                if (!prompt.trim() || isGenerating) return;
+                
+                setIsGenerating(true);
+                try {
+                    // Generate VTuber image with AI
+                    const result = await websim.imageGen({
+                        prompt: `VTuber character design: ${prompt}, anime style, cute, expressive, colorful, high quality digital art`,
+                        transparent: true,
+                        aspect_ratio: "3:4"
+                    });
+                    
+                    // Convert image URL to blob and upload to permanent storage
+                    const response = await fetch(result.url);
+                    const blob = await response.blob();
+                    const file = new File([blob], 'vtuber.png', { type: 'image/png' });
+                    const permanentUrl = await websim.upload(file);
+                    
+                    // Save to database
+                    const vtuber = await room.collection('vtuber').create({
+                        name: generateVTuberName(prompt),
+                        prompt: prompt,
+                        imageUrl: permanentUrl,
+                        likes: 0
+                    });
+                    
+                    // Auto-select the newly generated VTuber
+                    setSelectedVTuber(vtuber);
+                    setPrompt('');
+                } catch (error) {
+                    console.error('Error generating VTuber:', error);
+                    alert('Failed to generate VTuber. Please try again.');
+                } finally {
+                    setIsGenerating(false);
+                }
+            };
+
+            const generateVTuberName = (prompt) => {
+                const prefixes = ['Luna', 'Kira', 'Yuki', 'Hana', 'Sora', 'Miku', 'Rika', 'Neko', 'Yui', 'Aoi'];
+                const suffixes = ['chan', 'kun', 'san', 'tan'];
+                const randomPrefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+                const randomSuffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+                return `${randomPrefix}-${randomSuffix}`;
+            };
+
+            const likeVTuber = async (vtuber) => {
+                if (!currentUser) return;
+                
+                try {
+                    await room.collection('vtuber').update(vtuber.id, {
+                        likes: vtuber.likes + 1
+                    });
+                } catch (error) {
+                    console.error('Error liking VTuber:', error);
+                }
+            };
+
+            const handleKeyPress = (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    generateVTuber();
+                }
+            };
+
+            return (
+                <div className="app">
+                    <header className="header">
+                        <h1>🎭 VTuber Generator</h1>
+                        <p>Create your perfect virtual character with AI</p>
+                    </header>
+
+                    <div className="generator-section">
+                        <div className="input-container">
+                            <textarea
+                                value={prompt}
+                                onChange={(e) => setPrompt(e.target.value)}
+                                onKeyPress={handleKeyPress}
+                                placeholder="Describe your VTuber... (e.g., 'cat girl with blue hair and magical powers')"
+                                className="prompt-input"
+                                rows="3"
+                            />
+                            <button
+                                onClick={generateVTuber}
+                                disabled={!prompt.trim() || isGenerating}
+                                className="generate-btn"
+                            >
+                                {isGenerating ? (
+                                    <>
+                                        <span className="spinner"></span>
+                                        Generating...
+                                    </>
+                                ) : (
+                                    '✨ Generate VTuber'
+                                )}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="gallery-section">
+                        <h2>VTuber Gallery</h2>
+                        <div className="vtuber-grid">
+                            {vtubers.slice().reverse().map((vtuber) => (
+                                <div
+                                    key={vtuber.id}
+                                    className={`vtuber-card ${selectedVTuber?.id === vtuber.id ? 'selected' : ''}`}
+                                    onClick={() => setSelectedVTuber(vtuber)}
+                                >
+                                    <div className="vtuber-image-container">
+                                        <img
+                                            src={vtuber.imageUrl}
+                                            alt={vtuber.name}
+                                            className="vtuber-image"
+                                        />
+                                    </div>
+                                    <div className="vtuber-info">
+                                        <h3>{vtuber.name}</h3>
+                                        <p className="vtuber-prompt">"{vtuber.prompt}"</p>
+                                        <div className="vtuber-meta">
+                                            <span className="creator">by {vtuber.username}</span>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    likeVTuber(vtuber);
+                                                }}
+                                                className="like-btn"
+                                            >
+                                                ❤️ {vtuber.likes}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        {vtubers.length === 0 && (
+                            <div className="empty-state">
+                                <p>No VTubers yet! Be the first to create one! 🌟</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {selectedVTuber && (
+                        <div className="selected-vtuber">
+                            <div className="vtuber-display">
+                                <img
+                                    src={selectedVTuber.imageUrl}
+                                    alt={selectedVTuber.name}
+                                    className="display-image"
+                                />
+                                <div className="vtuber-name-badge">
+                                    {selectedVTuber.name}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.render(<VTuberGenerator />, document.getElementById('root'));
+    </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
+
