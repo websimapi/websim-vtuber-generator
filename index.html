@@ -21,11 +21,13 @@
             const [isGenerating, setIsGenerating] = useState(false);
             const [selectedVTuber, setSelectedVTuber] = useState(null);
             const [currentUser, setCurrentUser] = useState(null);
+            const [editingVTuber, setEditingVTuber] = useState(null);
+            const [anchorPoints, setAnchorPoints] = useState([]);
             
             // Subscribe to VTuber records
             const vtubers = React.useSyncExternalStore(
-                room.collection('vtuber').subscribe,
-                room.collection('vtuber').getList
+                room.collection('vtuber_v2').subscribe,
+                room.collection('vtuber_v2').getList
             );
 
             useEffect(() => {
@@ -55,11 +57,12 @@
                     const permanentUrl = await websim.upload(file);
                     
                     // Save to database
-                    const vtuber = await room.collection('vtuber').create({
+                    const vtuber = await room.collection('vtuber_v2').create({
                         name: generateVTuberName(prompt),
                         prompt: prompt,
                         imageUrl: permanentUrl,
-                        likes: 0
+                        likes: 0,
+                        anchorPoints: []
                     });
                     
                     // Auto-select the newly generated VTuber
@@ -85,12 +88,66 @@
                 if (!currentUser) return;
                 
                 try {
-                    await room.collection('vtuber').update(vtuber.id, {
+                    await room.collection('vtuber_v2').update(vtuber.id, {
                         likes: vtuber.likes + 1
                     });
                 } catch (error) {
                     console.error('Error liking VTuber:', error);
                 }
+            };
+
+            const startEditing = (vtuber) => {
+                setEditingVTuber(vtuber);
+                setAnchorPoints(vtuber.anchorPoints || []);
+            };
+
+            const stopEditing = () => {
+                setEditingVTuber(null);
+                setAnchorPoints([]);
+            };
+
+            const saveAnchorPoints = async () => {
+                if (!editingVTuber) return;
+                
+                try {
+                    await room.collection('vtuber_v2').update(editingVTuber.id, {
+                        anchorPoints: anchorPoints
+                    });
+                    stopEditing();
+                } catch (error) {
+                    console.error('Error saving anchor points:', error);
+                    alert('Failed to save anchor points. Please try again.');
+                }
+            };
+
+            const addAnchorPoint = (e, type) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = ((e.clientX - rect.left) / rect.width) * 100;
+                const y = ((e.clientY - rect.top) / rect.height) * 100;
+                
+                const newPoint = {
+                    id: Date.now(),
+                    x: x,
+                    y: y,
+                    type: type,
+                    label: `${type} ${anchorPoints.filter(p => p.type === type).length + 1}`
+                };
+                
+                setAnchorPoints([...anchorPoints, newPoint]);
+            };
+
+            const removeAnchorPoint = (pointId) => {
+                setAnchorPoints(anchorPoints.filter(p => p.id !== pointId));
+            };
+
+            const getAnchorTypeColor = (type) => {
+                const colors = {
+                    face: '#ff6b6b',
+                    hair: '#4ecdc4',
+                    body: '#45b7d1',
+                    accessory: '#96ceb4'
+                };
+                return colors[type] || '#333';
             };
 
             const handleKeyPress = (e) => {
@@ -149,21 +206,49 @@
                                             alt={vtuber.name}
                                             className="vtuber-image"
                                         />
+                                        {vtuber.anchorPoints && vtuber.anchorPoints.length > 0 && (
+                                            <div className="anchor-points-preview">
+                                                {vtuber.anchorPoints.map((point) => (
+                                                    <div
+                                                        key={point.id}
+                                                        className="anchor-point-preview"
+                                                        style={{
+                                                            left: `${point.x}%`,
+                                                            top: `${point.y}%`,
+                                                            backgroundColor: getAnchorTypeColor(point.type)
+                                                        }}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="vtuber-info">
                                         <h3>{vtuber.name}</h3>
                                         <p className="vtuber-prompt">"{vtuber.prompt}"</p>
                                         <div className="vtuber-meta">
                                             <span className="creator">by {vtuber.username}</span>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    likeVTuber(vtuber);
-                                                }}
-                                                className="like-btn"
-                                            >
-                                                ❤️ {vtuber.likes}
-                                            </button>
+                                            <div className="vtuber-actions">
+                                                {currentUser && currentUser.username === vtuber.username && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            startEditing(vtuber);
+                                                        }}
+                                                        className="edit-btn"
+                                                    >
+                                                        ✏️ Edit
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        likeVTuber(vtuber);
+                                                    }}
+                                                    className="like-btn"
+                                                >
+                                                    ❤️ {vtuber.likes}
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -191,6 +276,78 @@
                             </div>
                         </div>
                     )}
+
+                    {editingVTuber && (
+                        <div className="edit-modal">
+                            <div className="edit-modal-content">
+                                <div className="edit-header">
+                                    <h2>Add Anchor Points - {editingVTuber.name}</h2>
+                                    <button onClick={stopEditing} className="close-btn">✕</button>
+                                </div>
+                                
+                                <div className="edit-instructions">
+                                    <p>Click on the image to add anchor points for animation tracking:</p>
+                                    <div className="anchor-types">
+                                        <label>
+                                            <input type="radio" name="anchorType" value="face" defaultChecked />
+                                            <span style={{color: '#ff6b6b'}}>● Face</span>
+                                        </label>
+                                        <label>
+                                            <input type="radio" name="anchorType" value="hair" />
+                                            <span style={{color: '#4ecdc4'}}>● Hair</span>
+                                        </label>
+                                        <label>
+                                            <input type="radio" name="anchorType" value="body" />
+                                            <span style={{color: '#45b7d1'}}>● Body</span>
+                                        </label>
+                                        <label>
+                                            <input type="radio" name="anchorType" value="accessory" />
+                                            <span style={{color: '#96ceb4'}}>● Accessory</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div className="edit-image-container">
+                                    <img
+                                        src={editingVTuber.imageUrl}
+                                        alt={editingVTuber.name}
+                                        className="edit-image"
+                                        onClick={(e) => {
+                                            const selectedType = document.querySelector('input[name="anchorType"]:checked').value;
+                                            addAnchorPoint(e, selectedType);
+                                        }}
+                                    />
+                                    <div className="anchor-points-overlay">
+                                        {anchorPoints.map((point) => (
+                                            <div
+                                                key={point.id}
+                                                className="anchor-point"
+                                                style={{
+                                                    left: `${point.x}%`,
+                                                    top: `${point.y}%`,
+                                                    backgroundColor: getAnchorTypeColor(point.type)
+                                                }}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    removeAnchorPoint(point.id);
+                                                }}
+                                                title={`${point.label} (click to remove)`}
+                                            >
+                                                <span className="anchor-label">{point.label}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="edit-actions">
+                                    <button onClick={stopEditing} className="cancel-btn">Cancel</button>
+                                    <button onClick={saveAnchorPoints} className="save-btn">
+                                        Save Anchor Points ({anchorPoints.length})
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
@@ -200,4 +357,3 @@
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
-
