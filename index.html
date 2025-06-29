@@ -172,9 +172,9 @@
                     const upperLip = face[13];
                     const lowerLip = face[14];
                     const mouthOpenness = Math.abs(upperLip.y - lowerLip.y);
-                    // Scale mouth region vertically based on openness
-                    mouthScaleY = 0.3 + (mouthOpenness * 20); // Scale from 0.3 to expand based on mouth
-                    mouthScaleY = Math.max(0.3, Math.min(2.0, mouthScaleY)); // Clamp between 0.3 and 2.0
+                    // Scale mouth region vertically based on openness - start at 1.0 (normal) for closed mouth
+                    mouthScaleY = 1.0 + (mouthOpenness * 8); // Scale from 1.0 to expand based on mouth opening
+                    mouthScaleY = Math.max(1.0, Math.min(1.4, mouthScaleY)); // Clamp between 1.0 and 1.4 for subtle effect
                 }
                 
                 return {
