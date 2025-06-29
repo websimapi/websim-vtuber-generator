@@ -484,20 +484,6 @@
                                 <div className="vtuber-name-badge">
                                     {selectedVTuber.name}
                                 </div>
-                                {selectedVTuber.anchorPoints?.map((point) => (
-                                    <div
-                                        key={point.id}
-                                        className="live-anchor-point"
-                                        style={{
-                                            left: `${point.x}%`,
-                                            top: `${point.y}%`,
-                                            backgroundColor: getAnchorTypeColor(point.type),
-                                            transform: trackingData?.faceLandmarks ? 
-                                                `translate(-50%, -50%) scale(${1 + Math.sin(Date.now() * 0.01) * 0.1})` :
-                                                'translate(-50%, -50%)'
-                                        }}
-                                    />
-                                ))}
                             </div>
                         </div>
                     )}
