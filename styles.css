@@ -319,6 +319,16 @@ body {
     z-index: 10;
 }
 
+.selected-vtuber-container {
+    transition: transform 0.1s ease-out;
+    transform-origin: center center;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    pointer-events: none;
+}
+
 .selected-vtuber .vtuber-display {
     transition: transform 0.1s ease-out;
     transform-origin: center center;
@@ -330,6 +340,8 @@ body {
     right: 20px;
     z-index: 1000;
     pointer-events: none;
+    /* This rule block is now mostly redundant due to .selected-vtuber-container */
+    /* Keeping for potential backward compatibility or other uses, but can be cleaned up */
 }
 
 .vtuber-display {
