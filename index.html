@@ -259,15 +259,22 @@
                 const x = ((e.clientX - rect.left) / rect.width) * 100;
                 const y = ((e.clientY - rect.top) / rect.height) * 100;
                 
+                // Prevent duplicate anchor points of the same type
+                const existingAnchor = anchorPoints.find(p => p.type === type);
+                if (existingAnchor && (type === 'left_eye' || type === 'right_eye' || type === 'mouth' || type === 'left_shoulder' || type === 'right_shoulder')) {
+                    // Remove existing anchor of same type before adding new one
+                    setAnchorPoints(prevPoints => prevPoints.filter(p => p.type !== type));
+                }
+                
                 const newPoint = {
                     id: Date.now(),
                     x: x,
                     y: y,
                     type: type,
-                    label: `${type} ${anchorPoints.filter(p => p.type === type).length + 1}`
+                    label: type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
                 };
                 
-                setAnchorPoints([...anchorPoints, newPoint]);
+                setAnchorPoints(prevPoints => [...prevPoints.filter(p => p.type !== type), newPoint]);
             };
 
             const removeAnchorPoint = (pointId) => {
@@ -276,10 +283,11 @@
 
             const getAnchorTypeColor = (type) => {
                 const colors = {
-                    face: '#ff6b6b',
-                    hair: '#4ecdc4',
-                    body: '#45b7d1',
-                    accessory: '#96ceb4'
+                    left_eye: '#ff6b6b',
+                    right_eye: '#ff4757',
+                    mouth: '#ff3838',
+                    left_shoulder: '#45b7d1',
+                    right_shoulder: '#3c6382'
                 };
                 return colors[type] || '#333';
             };
@@ -478,20 +486,24 @@
                                     <p>Click on the image to add anchor points for animation tracking:</p>
                                     <div className="anchor-types">
                                         <label>
-                                            <input type="radio" name="anchorType" value="face" defaultChecked />
-                                            <span style={{color: '#ff6b6b'}}>● Face</span>
+                                            <input type="radio" name="anchorType" value="left_eye" defaultChecked />
+                                            <span style={{color: '#ff6b6b'}}>● Left Eye</span>
                                         </label>
                                         <label>
-                                            <input type="radio" name="anchorType" value="hair" />
-                                            <span style={{color: '#4ecdc4'}}>● Hair</span>
+                                            <input type="radio" name="anchorType" value="right_eye" />
+                                            <span style={{color: '#ff4757'}}>● Right Eye</span>
                                         </label>
                                         <label>
-                                            <input type="radio" name="anchorType" value="body" />
-                                            <span style={{color: '#45b7d1'}}>● Body</span>
+                                            <input type="radio" name="anchorType" value="mouth" />
+                                            <span style={{color: '#ff3838'}}>● Mouth</span>
                                         </label>
                                         <label>
-                                            <input type="radio" name="anchorType" value="accessory" />
-                                            <span style={{color: '#96ceb4'}}>● Accessory</span>
+                                            <input type="radio" name="anchorType" value="left_shoulder" />
+                                            <span style={{color: '#45b7d1'}}>● Left Shoulder</span>
+                                        </label>
+                                        <label>
+                                            <input type="radio" name="anchorType" value="right_shoulder" />
+                                            <span style={{color: '#3c6382'}}>● Right Shoulder</span>
                                         </label>
                                     </div>
                                 </div>
