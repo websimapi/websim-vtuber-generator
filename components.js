@@ -166,8 +166,8 @@ const SelectedVTuberDisplay = memo(({ vtuber, trackingData }) => {
             const upperLip = face[13];
             const lowerLip = face[14];
             const mouthOpenness = Math.abs(upperLip.y - lowerLip.y);
-            mouthScaleY = 1.0 + (mouthOpenness * 8);
-            mouthScaleY = Math.max(1.0, Math.min(1.4, mouthScaleY));
+            mouthScaleY = 1.0 + (mouthOpenness * 10);
+            mouthScaleY = Math.max(1.0, Math.min(1.6, mouthScaleY));
         }
 
         return {
@@ -179,10 +179,25 @@ const SelectedVTuberDisplay = memo(({ vtuber, trackingData }) => {
 
     const transformStyle = getVTuberTransform();
     const mouthAnchor = vtuber.anchorPoints?.find(p => p.type === 'mouth');
+    
+    // Define mouth area properties
+    const mouthWidthPercent = 12;
+    const mouthHeightPercent = 6;
+
+    const mouthAnimStyle = mouthAnchor ? {
+        left: `${mouthAnchor.x}%`,
+        top: `${mouthAnchor.y}%`,
+        width: `${mouthWidthPercent}%`,
+        height: `${mouthHeightPercent}%`,
+        transform: `translate(-50%, -50%) scaleY(${transformStyle.mouthScale || 1})`,
+        backgroundImage: `url(${vtuber.imageUrl})`,
+        backgroundSize: `${100 / mouthWidthPercent * 100}% ${100 / mouthHeightPercent * 100}%`,
+        backgroundPosition: `${mouthAnchor.x / (1 - mouthWidthPercent / 100)}% ${mouthAnchor.y / (1 - mouthHeightPercent / 100)}%`,
+    } : {};
 
     return (
         <div className="selected-vtuber-container">
-            <div className="vtuber-display" style={transformStyle}>
+            <div className="vtuber-display" style={{transform: transformStyle.transform, filter: transformStyle.filter}}>
                 <img
                     src={vtuber.imageUrl}
                     alt={vtuber.name}
@@ -190,17 +205,9 @@ const SelectedVTuberDisplay = memo(({ vtuber, trackingData }) => {
                 />
                 {mouthAnchor && (
                     <div
-                        className="mouth-overlay"
-                        style={{
-                            transform: `scaleY(${transformStyle.mouthScale || 1})`,
-                            clipPath: `circle(3% at ${mouthAnchor.x}% ${mouthAnchor.y}%)`
-                        }}
+                        className="mouth-anim"
+                        style={mouthAnimStyle}
                     >
-                        <img
-                            src={vtuber.imageUrl}
-                            alt={vtuber.name}
-                            className="mouth-image"
-                        />
                     </div>
                 )}
                 <div className="vtuber-name-badge">

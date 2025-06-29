@@ -356,6 +356,14 @@ body {
     animation: slideIn 0.5s ease-out;
 }
 
+.mouth-anim {
+    position: absolute;
+    background-repeat: no-repeat;
+    transform-origin: center bottom;
+    transition: transform 0.05s ease-in-out;
+    z-index: 2;
+}
+
 .mouth-overlay {
     position: absolute;
     top: 0;
